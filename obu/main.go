@@ -47,9 +47,9 @@ func main() {
 				Long:  long,
 			}
 			if err := conn.WriteJSON(data); err != nil {
-				log.Fatal(err)
+				log.Printf("Failed to send data: %v", err)
+				return // Exit gracefully instead of log.Fatal
 			}
-
 		}
 		time.Sleep(sendInterval)
 	}
