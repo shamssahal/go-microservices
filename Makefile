@@ -11,9 +11,10 @@ receiver:
 	@codesign -s - bin/receiver 2>/dev/null || true
 	@./bin/receiver
 
-# calculator:
-# 	@go build -o bin/calculator ./distance_calculator
-# 	@./bin/calculator
+calculator:
+	@go build -o bin/calculator ./distance_calculator
+	@codesign -s - bin/calculator 2>/dev/null || true
+	@./bin/calculator
 
 # agg:
 # 	@go build -o bin/agg ./aggregator

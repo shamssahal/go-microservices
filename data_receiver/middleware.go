@@ -22,8 +22,10 @@ func (l *LogMiddleware) ProduceData(data types.OBUData) error {
 		start := time.Now()
 		logrus.WithFields(logrus.Fields{
 			"obuID":     data.OBUID,
-			"lat":       data.Lat,
-			"long":      data.Long,
+			"currLat":   data.CurrLat,
+			"currLong":  data.CurrLong,
+			"prevLat":   data.PrevLat,
+			"prevLong":  data.PrevLong,
 			"timestamp": start,
 			"took":      time.Since(start),
 		}).Info("producing to kafka")

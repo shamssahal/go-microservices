@@ -1,7 +1,9 @@
 package types
 
 type OBUData struct {
-	OBUID int     `json:"obuID"`
-	Lat   float64 `json:"lat"`
-	Long  float64 `json:"long"`
+	OBUID    int     `json:"obuID"`
+	CurrLat  float64 `json:"currLat"`
+	CurrLong float64 `json:"currLong"`
+	PrevLat  float64 `json:"prevLat"`
+	PrevLong float64 `json:"prevLong"`
 }

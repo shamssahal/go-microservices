@@ -40,11 +40,14 @@ func main() {
 	}
 	for {
 		for i := range OBUIDs {
-			lat, long := genLatLong()
+			currLat, currLong := genLatLong()
+			prevLat, prevLong := genLatLong()
 			data := types.OBUData{
-				OBUID: OBUIDs[i],
-				Lat:   lat,
-				Long:  long,
+				OBUID:    OBUIDs[i],
+				CurrLat:  currLat,
+				CurrLong: currLong,
+				PrevLat:  prevLat,
+				PrevLong: prevLong,
 			}
 			if err := conn.WriteJSON(data); err != nil {
 				log.Printf("Failed to send data: %v", err)
