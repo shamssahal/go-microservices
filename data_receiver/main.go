@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/gorilla/websocket"
 	"github.com/shamssahal/toll-calculator/types"
 )
@@ -28,7 +26,7 @@ var (
 
 type DataReceiver struct {
 	upgrader websocket.Upgrader
-	prod     *kafka.Producer
+	prod     DataProducer
 }
 
 func (dr *DataReceiver) wsReceiveLoop(ctx context.Context, conn *websocket.Conn, cancel context.CancelFunc) {
@@ -60,40 +58,14 @@ func (dr *DataReceiver) wsReceiveLoop(ctx context.Context, conn *websocket.Conn,
 }
 
 func (dr *DataReceiver) produceData(data types.OBUData) error {
-	b, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	return dr.prod.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &kafkaTopic,
-			Partition: kafka.PartitionAny,
-		},
-		Value: b,
-	}, nil)
+	return dr.prod.ProduceData(data)
 }
 
 func NewDataReceiver() (*DataReceiver, error) {
-	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": kafkaBroker,
-	})
+	p, err := NewKafkaProducer()
 	if err != nil {
 		return nil, err
 	}
-	// Delivery report handler for produced messages
-	go func() {
-		for e := range p.Events() {
-			switch ev := e.(type) {
-			case *kafka.Message:
-				if ev.TopicPartition.Error != nil {
-					fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
-				} else {
-					fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
-				}
-			}
-		}
-	}()
-
 	return &DataReceiver{
 		prod: p,
 		upgrader: websocket.Upgrader{
