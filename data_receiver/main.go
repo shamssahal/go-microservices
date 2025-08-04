@@ -18,10 +18,7 @@ const (
 	kafkaBroker     = "localhost:9092"
 	httpListenAddr  = ":30000"
 	maxKafkaTimeout = 10_000
-)
-
-var (
-	kafkaTopic = "obudata"
+	kafkaTopic      = "obudata"
 )
 
 type DataReceiver struct {
@@ -62,10 +59,15 @@ func (dr *DataReceiver) produceData(data types.OBUData) error {
 }
 
 func NewDataReceiver() (*DataReceiver, error) {
-	p, err := NewKafkaProducer()
+	var (
+		p   DataProducer
+		err error
+	)
+	p, err = NewKafkaProducer(kafkaTopic)
 	if err != nil {
 		return nil, err
 	}
+	p = NewLogMiddleware(p)
 	return &DataReceiver{
 		prod: p,
 		upgrader: websocket.Upgrader{
