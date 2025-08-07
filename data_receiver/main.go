@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/shamssahal/toll-calculator/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -58,6 +60,11 @@ func (dr *DataReceiver) produceData(data types.OBUData) error {
 	return dr.prod.ProduceData(data)
 }
 
+func (dr *DataReceiver) cleanup() {
+	dr.prod.Flush(maxKafkaTimeout)
+	dr.prod.Close()
+}
+
 func NewDataReceiver() (*DataReceiver, error) {
 	var (
 		p   DataProducer
@@ -80,28 +87,31 @@ func NewDataReceiver() (*DataReceiver, error) {
 	}, nil
 }
 
-func (dr *DataReceiver) handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := dr.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
+// uses decorator pattern to pass the context to websocket handler
+// which returns the http handler for the /ws enpoint
+func (dr *DataReceiver) handleWS(ctx context.Context) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := dr.upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		ctx, cancel := context.WithCancel(ctx)
+		//contex watcher for canceled context
+		// closes the connection the momemt
+		// the passed context ctx is cancelled in receive loop
+		go func() {
+			<-ctx.Done()
+			conn.Close()
+		}()
+		// receive loop to listen to
+		go dr.wsReceiveLoop(ctx, conn, cancel)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-
-	//contex watcher for canceled context
-	// closes the connection the momemt
-	// the passed context ctx is cancelled in receive loop
-	go func() {
-		<-ctx.Done()
-		conn.Close()
-	}()
-	// receive loop to listen to
-	go dr.wsReceiveLoop(ctx, conn, cancel)
-
 }
 
-func (dr *DataReceiver) ServerHTTP(ctx context.Context) error {
+func (dr *DataReceiver) makeHTTPTransportLayer(ctx context.Context) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", dr.handleWS)
+	timeout := time.Second * 10
+	mux.HandleFunc("/ws", dr.handleWS(ctx))
 
 	srv := &http.Server{
 		Addr:              httpListenAddr,
@@ -109,12 +119,27 @@ func (dr *DataReceiver) ServerHTTP(ctx context.Context) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	// only to publish fatal errors
+	srvErrCh := make(chan error, 1)
+	defer close(srvErrCh)
 	go func() {
-		<-ctx.Done()
-		_ = srv.Shutdown(context.Background())
+		srvErrCh <- srv.ListenAndServe()
+
 	}()
-	log.Printf("data receiver listening on %s", httpListenAddr)
-	return srv.ListenAndServe()
+
+	select {
+	case sig := <-sigCh:
+		logrus.Info("Received interruption signal. Shutting down gracefully, signal:", sig)
+	case err := <-srvErrCh:
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Errorf("Received unrecoverable error. Shutting down gracefully %v", err)
+		}
+	}
+	
+	dr.cleanup()
+	gracefulShutdown(ctx, timeout, srv)
 }
 
 func main() {
@@ -123,16 +148,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if err := receiver.ServerHTTP(ctx); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("http server err: %v\n", err)
-	}
+	receiver.makeHTTPTransportLayer(ctx)
 
-	receiver.prod.Flush(maxKafkaTimeout)
-	receiver.prod.Close()
+}
 
-	fmt.Println("Graceful Shutdown Complete")
+func gracefulShutdown(ctx context.Context, timeout time.Duration, srv *http.Server) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		if err := srv.Shutdown(ctx); err != nil {
+			logrus.Errorf("Failed to gracefully shutdown server %v", err)
+		}
+	}()
+	wg.Wait()
+	logrus.Info("Graceful shutdown complete")
 
 }

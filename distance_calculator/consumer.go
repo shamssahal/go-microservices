@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/shamssahal/toll-calculator/aggregator/client"
 	"github.com/shamssahal/toll-calculator/types"
 	"github.com/sirupsen/logrus"
 )
@@ -14,9 +15,10 @@ type KafkaConsumer struct {
 	consumer    *kafka.Consumer
 	isRunning   bool
 	calcService CalculatorServicer
+	aggClient   *client.Client
 }
 
-func NewKafkaConsumer(topic string, svc CalculatorServicer) (*KafkaConsumer, error) {
+func NewKafkaConsumer(topic string, svc CalculatorServicer, aggClient *client.Client) (*KafkaConsumer, error) {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost:9092",
 		"group.id":          "myGroup",
@@ -33,6 +35,7 @@ func NewKafkaConsumer(topic string, svc CalculatorServicer) (*KafkaConsumer, err
 	return &KafkaConsumer{
 		consumer:    c,
 		calcService: svc,
+		aggClient:   aggClient,
 	}, nil
 }
 
@@ -54,11 +57,20 @@ func (c *KafkaConsumer) readMessageLoop() {
 			logrus.Errorf("JSON serialization error: %s", err)
 			continue
 		}
-		distance, err := c.calcService.CalculateDistance(data)
+		dist, err := c.calcService.CalculateDistance(data)
 		if err != nil {
-			logrus.Errorf("Distance calcualtion svc error: %s", err)
+			logrus.Errorf("calc service error %s", err)
+		}
+		distance := types.Distance{
+			Value: dist,
+			OBUID: data.OBUID,
+			Unix:  time.Now().UnixNano(),
+		}
+		err = c.aggClient.AggregateInvoice(distance)
+		if err != nil {
+			logrus.Errorf("aggregate client failure:", err)
 			continue
 		}
-		fmt.Printf("OBU_ID: %d | distance :  %2.f\n", data.OBUID, distance)
+
 	}
 }
