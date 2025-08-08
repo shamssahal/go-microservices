@@ -9,7 +9,7 @@ import (
 
 const (
 	kafkaTopic             = "obudata"
-	httpAggregatorEndpoint = "http://127.0.0.1:3000/aggregate"
+	httpAggregatorEndpoint = "http://127.0.0.1:3000"
 	grpcAggregatorEndpoint = "127.0.0.1:3001"
 )
 

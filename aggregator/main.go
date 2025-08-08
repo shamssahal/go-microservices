@@ -56,11 +56,10 @@ func handleGetInvoice(svc Aggregator) http.HandlerFunc {
 				map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]types.Invoice{
-			"data": *invoice,
-		})
+		writeJSON(w, http.StatusOK, invoice)
 	}
 }
+
 func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
 	fmt.Printf("Starting distance aggregator HTTP Transport Layer on port %s\n", httpListenAddr)
 	timeout := time.Second * 10

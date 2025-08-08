@@ -21,14 +21,14 @@ type KafkaConsumer struct {
 
 func NewKafkaConsumer(topic string, svc CalculatorServicer, aggClient client.Client) (*KafkaConsumer, error) {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":        "localhost:9092",
-		"group.id":                 "myGroup",
-		"auto.offset.reset":        "earliest",
-		"session.timeout.ms":       6000,
-		"heartbeat.interval.ms":    2000,
-		"max.poll.interval.ms":     300000,
-		"enable.auto.commit":       true,
-		"auto.commit.interval.ms":  1000,
+		"bootstrap.servers":       "localhost:9092",
+		"group.id":                "myGroup",
+		"auto.offset.reset":       "earliest",
+		"session.timeout.ms":      6000,
+		"heartbeat.interval.ms":   2000,
+		"max.poll.interval.ms":    300000,
+		"enable.auto.commit":      true,
+		"auto.commit.interval.ms": 1000,
 	})
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (c *KafkaConsumer) readMessageLoop() {
 		}
 		req := &types.AggregateRequest{
 			Value: dist,
-			ObuID: int32(data.OBUID),
+			ObuID: int64(data.OBUID),
 			Unix:  time.Now().UnixNano(),
 		}
 		err = c.aggClient.Aggregate(context.Background(), req)

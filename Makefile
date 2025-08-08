@@ -1,6 +1,7 @@
-# gate:
-# 	@go build -o bin/gate gateway/main.go
-# 	@./bin/gate
+# make gateway GATEWAY_PORT=:8080
+gateway:
+	@go build -o bin/gateway gateway/main.go
+	@./bin/gateway -httpListenAddr=$(GATEWAY_PORT)
 
 obu:
 	@go build -o bin/obu obu/main.go
@@ -26,4 +27,4 @@ proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative types/ptypes.proto
 
 
-.PHONY: obu agg
+.PHONY: obu agg gateway
