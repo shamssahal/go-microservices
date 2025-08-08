@@ -22,8 +22,8 @@ agg:
 	@go build -o bin/agg ./aggregator
 	@./bin/agg
 
-# proto:
-# 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative types/ptypes.proto
+proto:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative types/ptypes.proto
 
 
 .PHONY: obu agg

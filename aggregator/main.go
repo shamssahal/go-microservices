@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/shamssahal/toll-calculator/types"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 func writeJSON(rw http.ResponseWriter, status int, v any) error {
@@ -59,7 +62,7 @@ func handleGetInvoice(svc Aggregator) http.HandlerFunc {
 	}
 }
 func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
-	fmt.Println("Starting distance aggregator...")
+	fmt.Printf("Starting distance aggregator HTTP Transport Layer on port %s\n", httpListenAddr)
 	timeout := time.Second * 10
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,16 +98,34 @@ func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
 	gracefulShutdown(ctx, timeout, srv)
 }
 
+func makeGRPCTransport(listenAddr string, svc Aggregator) error {
+	fmt.Printf("Starting distance aggregator gRPC Transport Layer on port %s\n", listenAddr)
+
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
+
+	serverRegistrar := grpc.NewServer([]grpc.ServerOption{}...)
+	server := NewGRPCServer(svc)
+	types.RegisterAggregatorServer(serverRegistrar, server)
+	return serverRegistrar.Serve(ln)
+}
+
 func main() {
 
 	var (
 		httpListenAddr = ":3000"
+		grpcListenAddr = ":3001"
 		store          = NewMemoryStore()
 		svc            = NewInvoiceAggregator(store)
 	)
 	svc = NewLogMiddleware(svc)
+	go func() {
+		log.Fatal(makeGRPCTransport(grpcListenAddr, svc))
+	}()
 	makeHTTPTransportLayer(httpListenAddr, svc)
-
 }
 
 func gracefulShutdown(ctx context.Context, timeout time.Duration, srv *http.Server) {
