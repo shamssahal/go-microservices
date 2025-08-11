@@ -37,8 +37,8 @@ func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
 	)
 	defer cancel()
 
-	mux.HandleFunc("POST /aggregate", aggregateHandler.instrument(handleAggregate(svc)))
-	mux.HandleFunc("GET /invoice", invoiceHandler.instrument(handleGetInvoice(svc)))
+	mux.HandleFunc("POST /aggregate", aggregateHandler.instrumentAndLog(handleAggregate(svc)))
+	mux.HandleFunc("GET /invoice", invoiceHandler.instrumentAndLog(handleGetInvoice(svc)))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	srv := &http.Server{

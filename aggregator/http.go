@@ -10,8 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/shamssahal/toll-calculator/types"
+	"github.com/sirupsen/logrus"
 )
 
+type HTTPHandlerWithError func(http.ResponseWriter, *http.Request) error
 type HTTPmetricHandler struct {
 	reqCounter prometheus.Counter
 	reqLatency prometheus.Histogram
@@ -33,47 +35,63 @@ func newHTTPMetricHandler(reqName string) *HTTPmetricHandler {
 	}
 }
 
-func (h *HTTPmetricHandler) instrument(next http.HandlerFunc) http.HandlerFunc {
+func (h *HTTPmetricHandler) instrumentAndLog(next HTTPHandlerWithError) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
 		defer func(start time.Time) {
-			h.reqLatency.Observe(time.Since(start).Seconds())
+			latency := time.Since(start).Seconds()
+			h.reqLatency.Observe(latency)
+			h.reqCounter.Inc()
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"latency": latency,
+					"error":   err,
+					"request": r.RequestURI,
+				}).Error("http request error:")
+			} else {
+				logrus.WithFields(logrus.Fields{
+					"latency": latency,
+					"request": r.RequestURI,
+				}).Info("received http request:")
+			}
 		}(time.Now())
-		h.reqCounter.Inc()
-		next(w, r)
+		err = next(w, r)
 	}
 }
 
-func handleAggregate(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleAggregate(svc Aggregator) HTTPHandlerWithError {
+	return func(w http.ResponseWriter, r *http.Request) error {
 		var distance types.Distance
 		if err := json.NewDecoder(r.Body).Decode(&distance); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
+			return err
 		}
 		if err := svc.AggregateDistance(context.Background(), distance); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+			return err
 		}
 
 		writeJSON(w, http.StatusOK, map[string]string{})
+		return nil
 	}
 }
 
-func handleGetInvoice(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleGetInvoice(svc Aggregator) HTTPHandlerWithError {
+	return func(w http.ResponseWriter, r *http.Request) error {
 		id := r.URL.Query().Get("id")
 		obuID, err := strconv.Atoi(id)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest,
 				map[string]string{"error": "missing or incorrect 'obuid' query parameter"})
-			return
+			return err
 		}
 		invoice, err := svc.CalculateInvoice(context.Background(), obuID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError,
 				map[string]string{"error": err.Error()})
-			return
+			return err
 		}
 		writeJSON(w, http.StatusOK, invoice)
+		return nil
 	}
 }
