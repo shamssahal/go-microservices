@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -27,52 +26,21 @@ func writeJSON(rw http.ResponseWriter, status int, v any) error {
 	return json.NewEncoder(rw).Encode(v)
 }
 
-func handleAggregate(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var distance types.Distance
-		if err := json.NewDecoder(r.Body).Decode(&distance); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		if err := svc.AggregateDistance(context.Background(), distance); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-
-		writeJSON(w, http.StatusOK, map[string]string{})
-	}
-}
-
-func handleGetInvoice(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.URL.Query().Get("id")
-		obuID, err := strconv.Atoi(id)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest,
-				map[string]string{"error": "missing or incorrect 'obuid' query parameter"})
-			return
-		}
-		invoice, err := svc.CalculateInvoice(context.Background(), obuID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError,
-				map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, invoice)
-	}
-}
-
 func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
 	fmt.Printf("Starting distance aggregator HTTP Transport Layer on port %s\n", httpListenAddr)
-	timeout := time.Second * 10
-
-	ctx, cancel := context.WithCancel(context.Background())
+	var (
+		timeout          = time.Second * 10
+		ctx, cancel      = context.WithCancel(context.Background())
+		mux              = http.NewServeMux()
+		aggregateHandler = newHTTPMetricHandler("/aggregate")
+		invoiceHandler   = newHTTPMetricHandler("/invoice")
+	)
 	defer cancel()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /aggregate", handleAggregate(svc))
-	mux.HandleFunc("GET /invoice", handleGetInvoice(svc))
+	mux.HandleFunc("POST /aggregate", aggregateHandler.instrument(handleAggregate(svc)))
+	mux.HandleFunc("GET /invoice", invoiceHandler.instrument(handleGetInvoice(svc)))
 	mux.Handle("GET /metrics", promhttp.Handler())
+
 	srv := &http.Server{
 		Addr:              httpListenAddr,
 		Handler:           mux,
