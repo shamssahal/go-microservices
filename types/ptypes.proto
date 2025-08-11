@@ -10,6 +10,7 @@ message AggregateRequest {
     int64 ObuID = 1;
     double Value = 2;
     int64 Unix = 3;
+    string RequestID = 4;
 }
 
 message None {}

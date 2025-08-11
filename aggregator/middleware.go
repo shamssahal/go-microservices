@@ -72,9 +72,10 @@ func NewMetricsMiddleware(next Aggregator) Aggregator {
 func (m *LogMiddleware) AggregateDistance(ctx context.Context, distance types.Distance) (err error) {
 	defer func(start time.Time) {
 		logrus.WithFields(logrus.Fields{
-			"took":     time.Since(start),
-			"err":      err,
-			"distance": distance,
+			"took":      time.Since(start),
+			"err":       err,
+			"distance":  distance,
+			"requestId": distance.RequestID,
 		}).Info("Aggregate distance")
 	}(time.Now())
 	err = m.next.AggregateDistance(ctx, distance)

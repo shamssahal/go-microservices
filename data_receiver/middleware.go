@@ -28,6 +28,7 @@ func (l *LogMiddleware) ProduceData(data types.OBUData) error {
 			"prevLong":  data.PrevLong,
 			"timestamp": start,
 			"took":      time.Since(start),
+			"requestId": data.RequestID,
 		}).Info("producing to kafka")
 	}()
 	return l.next.ProduceData(data)

@@ -68,9 +68,10 @@ func (c *KafkaConsumer) readMessageLoop() {
 			logrus.Errorf("calc service error %s", err)
 		}
 		req := &types.AggregateRequest{
-			Value: dist,
-			ObuID: int64(data.OBUID),
-			Unix:  time.Now().UnixNano(),
+			Value:     dist,
+			ObuID:     int64(data.OBUID),
+			Unix:      time.Now().UnixNano(),
+			RequestID: data.RequestID,
 		}
 		err = c.aggClient.Aggregate(context.Background(), req)
 		if err != nil {

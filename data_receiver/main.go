@@ -137,7 +137,7 @@ func (dr *DataReceiver) makeHTTPTransportLayer(ctx context.Context) {
 			logrus.Errorf("Received unrecoverable error. Shutting down gracefully %v", err)
 		}
 	}
-	
+
 	dr.cleanup()
 	gracefulShutdown(ctx, timeout, srv)
 }

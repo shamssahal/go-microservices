@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/shamssahal/toll-calculator/types"
 )
@@ -43,11 +44,12 @@ func main() {
 			currLat, currLong := genLatLong()
 			prevLat, prevLong := genLatLong()
 			data := types.OBUData{
-				OBUID:    OBUIDs[i],
-				CurrLat:  currLat,
-				CurrLong: currLong,
-				PrevLat:  prevLat,
-				PrevLong: prevLong,
+				OBUID:     OBUIDs[i],
+				CurrLat:   currLat,
+				CurrLong:  currLong,
+				PrevLat:   prevLat,
+				PrevLong:  prevLong,
+				RequestID: uuid.New().String(),
 			}
 			if err := conn.WriteJSON(data); err != nil {
 				log.Printf("Failed to send data: %v", err)

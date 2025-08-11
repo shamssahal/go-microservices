@@ -21,9 +21,10 @@ func (m *LogMiddleware) CalculateDistance(data types.OBUData) (dist float64, err
 	defer func() {
 		start := time.Now()
 		logrus.WithFields(logrus.Fields{
-			"took":     time.Since(start),
-			"err":      err,
-			"distance": dist,
+			"took":      time.Since(start),
+			"err":       err,
+			"distance":  dist,
+			"requestId": data.RequestID,
 		}).Info("calculate distance")
 	}()
 	dist, err = m.next.CalculateDistance(data)

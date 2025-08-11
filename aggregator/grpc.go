@@ -13,9 +13,10 @@ type GRPCAggregatorServer struct {
 
 func (s *GRPCAggregatorServer) Aggregate(ctx context.Context, req *types.AggregateRequest) (*types.None, error) {
 	distance := types.Distance{
-		OBUID: int(req.ObuID),
-		Value: float64(req.Value),
-		Unix:  int64(req.Unix),
+		OBUID:     int(req.ObuID),
+		Value:     float64(req.Value),
+		Unix:      int64(req.Unix),
+		RequestID: string(req.RequestID),
 	}
 	err := s.svc.AggregateDistance(ctx, distance)
 	if err != nil {
