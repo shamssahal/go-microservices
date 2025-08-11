@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/shamssahal/toll-calculator/aggregator/client"
 	"github.com/shamssahal/toll-calculator/gateway/config"
 	"github.com/shamssahal/toll-calculator/gateway/handler"
@@ -71,4 +73,10 @@ func gracefulShutdown(ctx context.Context, readTimeout time.Duration, srv *http.
 	}()
 	wg.Wait()
 	logrus.Info("Graceful shutdown complete")
+}
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
 }

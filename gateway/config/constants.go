@@ -1,3 +1,5 @@
 package config
 
-const AggregatorService = "http://localhost:3000"
+import "os"
+
+var AggregatorService = os.Getenv("AGG_SERVICE_ENDPOINT")

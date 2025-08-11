@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/shamssahal/toll-calculator/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -70,6 +72,7 @@ func makeHTTPTransportLayer(httpListenAddr string, svc Aggregator) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /aggregate", handleAggregate(svc))
 	mux.HandleFunc("GET /invoice", handleGetInvoice(svc))
+	mux.Handle("GET /metrics", promhttp.Handler())
 	srv := &http.Server{
 		Addr:              httpListenAddr,
 		Handler:           mux,
@@ -112,15 +115,28 @@ func makeGRPCTransport(listenAddr string, svc Aggregator) error {
 	return serverRegistrar.Serve(ln)
 }
 
+// Chain composes middlewares in order: Chain(A,B,C){H} => A(B(C(H))).
+// All middlewares take in aggregator and return a aggregator
+func Chain(a Aggregator, mws ...func(Aggregator) Aggregator) Aggregator {
+	for i := len(mws) - 1; i >= 0; i-- {
+		a = mws[i](a)
+	}
+	return a
+}
+
 func main() {
 
 	var (
-		httpListenAddr = ":3000"
-		grpcListenAddr = ":3001"
-		store          = NewMemoryStore()
+		httpListenAddr = os.Getenv("AGG_HTTP_PORT")
+		grpcListenAddr = os.Getenv("AGG_GRPC_PORT")
+		store          = makeStore()
 		svc            = NewInvoiceAggregator(store)
 	)
-	svc = NewLogMiddleware(svc)
+	svc = Chain(
+		svc,
+		func(s Aggregator) Aggregator { return (NewMetricsMiddleware(s)) },
+		func(s Aggregator) Aggregator { return (NewLogMiddleware(s)) },
+	)
 	go func() {
 		log.Fatal(makeGRPCTransport(grpcListenAddr, svc))
 	}()
@@ -143,4 +159,21 @@ func gracefulShutdown(ctx context.Context, timeout time.Duration, srv *http.Serv
 	wg.Wait()
 	logrus.Info("Graceful shutdown complete")
 
+}
+
+func makeStore() Storer {
+	storeType := os.Getenv("AGG_STORE_TYPE")
+	switch storeType {
+	case "memory":
+		return NewMemoryStore()
+	default:
+		log.Fatalf("invalid store type given %s", storeType)
+		return nil
+	}
+}
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
 }
